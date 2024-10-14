@@ -101,7 +101,7 @@ public:
 			res.data += mres;
 		}
 		cout << endl << ml << " " << mr << " " << normal_unit << " " << res.data << endl;
-		//res.data += ((mres & 0x7F) >> (mres >> 7)) + (mres & 0xFF80); //если порядок переполнился, тогда записать туда порядок и сдвинуть мантиссу
+		//res.data += ((mres & 0x7F) >> (mres >> 7)) + (mres & 0xFF80); //пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ, пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 
 		return res;
 	}
@@ -131,8 +131,11 @@ public:
 			res.data = (el + er - 127) << 7;
 		}
 		else if ((el + er - int16_t(127)) >= -7) { // matches 2^-133 // -6 -> -7
-			res.data = 0;
-			/*if ((el + er - int16_t(127)) == -7)*/ too_low = true;
+			//if ((el + er - int16_t(127)) != -7) 
+			//	res.data = uint16_t(1) << (el + er - uint16_t(121));
+			//else 
+				res.data = 0;
+			too_low = true;
 		}
 		else {
 			res.data = 0;
@@ -152,7 +155,7 @@ public:
 		if (res.data >> 15) {
 			return bfinf;
 		}
-		if (!res.getexp() || too_low) { //ошибка: в экспоненте находится переполнение мантиссы при слишком маленькой (-7) сумме экспонент
+		if (!res.getexp() || too_low) { //пїЅпїЅпїЅпїЅпїЅпїЅ: пїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ (-7) пїЅпїЅпїЅпїЅпїЅ пїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅпїЅ
 			// from normal to subnormal
 			//cout << endl << el + er - 127 << " " << res.data << endl;
 			//if ((127 + 1 - el - er) < )
@@ -243,7 +246,7 @@ public:
 				l = l.mul(l, r);
 				//cout << endl << float(BF16(l)) << " " << float(BF16(r)) << endl;
 				//cout << l.example << " " << float(l) << endl;
-				if (/*!isnan(l.example)*/ (l.example == l.example) && !equal_prec(BF16(l.example).data, l.data, 2)) {
+				if (/*!isnan(l.example)*/ (l.example == l.example) && !equal_prec(BF16(l.example).data, l.data, 1)) {
 					//cout << " ADD ERROR\n";
 					cout << " MUL ERROR\n";
 					cout << l.example << " expected, " << float(l) << " instead\n";
