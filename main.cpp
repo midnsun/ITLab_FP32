@@ -101,7 +101,7 @@ public:
 			res.data += mres;
 		}
 		cout << endl << ml << " " << mr << " " << normal_unit << " " << res.data << endl;
-		//res.data += ((mres & 0x7F) >> (mres >> 7)) + (mres & 0xFF80); //���� ������� ������������, ����� �������� ���� ������� � �������� ��������
+		//res.data += ((mres & 0x7F) >> (mres >> 7)) + (mres & 0xFF80); //
 
 		return res;
 	}
@@ -123,7 +123,7 @@ public:
 			return bfnan;
 		}
 
-		uint16_t sign;
+		uint16_t sign = l.getsign() ^ r.getsign();
 		uint16_t ml = l.getmantissa(), mr = r.getmantissa();
 		int16_t el = l.getexp(), er = r.getexp();
 
@@ -165,6 +165,58 @@ public:
 				res.data += uint16_t(1) << (el + er - 127 + 6);
 			}
 		}
+		return res;
+	}
+
+	BF16 mul2(const BF16 l, const BF16 r) const noexcept {
+		BF16 res;
+		res.data = 0;
+		res.example = l.example * r.example;
+		BF16 bfinf;
+		BF16 bfnan;
+		bfinf.data = 0x7f80 + ((l.getsign() ^ r.getsign()) << 15);
+		bfnan.data = 0x7f81 + ((l.getsign() ^ r.getsign()) << 15);
+		bfinf.example = INFINITY;
+		if (l.getsign() ^ r.getsign()) bfinf.example = -INFINITY;
+		bfnan.example = NAN;
+
+		if (l.isbfinf() || r.isbfinf()) {
+			return bfinf;
+		}
+		if (l.isbfnan() || r.isbfnan()) {
+			return bfnan;
+		}
+
+		uint16_t mres = ((l.getmantissa() + (uint16_t(1) << 7)) * (r.getmantissa() + (uint16_t(1) << 7)) >> 7) - (uint16_t(1) << 7);
+		int16_t eres = l.getexp() + r.getexp() - int16_t(127);
+
+		uint16_t shiftres = mres >> 7;
+		
+		if (eres > 0) {
+			res.data += eres << 7;
+			if (shiftres) {
+				res.data += (mres & 0xFF80);
+				res.data += (mres & 0x007F) >> shiftres;
+			}
+			else {
+				res.data += mres;
+			}
+		}
+		else if (eres >= -7) {
+			res.data += mres;
+			res.data >>= -eres; 
+			res.data += uint16_t(1) << (eres + 7);
+			res.data >>= 1; // +1 as subnormals
+		}
+		else {
+			res.data = 0;
+			return res;
+		}
+		if (res.data >> 15) {
+			return bfinf;
+		}
+		res.data += (l.getsign() ^ r.getsign()) << 15;
+
 		return res;
 	}
 
@@ -238,12 +290,13 @@ public:
 	void run() {
 		uint16_t lc, rc;
 		for (lc = 0x0080; lc < 0x7FFF; lc += 1) {
-			for (rc = 0x0080; rc < 0x7FFF; rc += 1) {
+		//#pragma omp parallel for
+			for (rc = 0x0080; rc < 0x7FFF; rc += 7) {
 				cout << lc << ", " << rc;
 				l = lc;
 				r = rc;
 				//l = l.add(l, r);
-				l = l.mul(l, r);
+				l = l.mul2(l, r);
 				//cout << endl << float(BF16(l)) << " " << float(BF16(r)) << endl;
 				//cout << l.example << " " << float(l) << endl;
 				if (/*!isnan(l.example)*/ (l.example == l.example) && !equal_prec(BF16(l.example).data, l.data, 1)) {
