@@ -28,7 +28,6 @@ class FP32 {
 		return ((getexp() == 0xFF) && getmantissa() != 0);
 	}
 	uint64_t roundDiv(uint64_t a, uint64_t qbits) const noexcept {
-		if (qbits == 0) return a;
 		uint64_t tmp = (a % (uint64_t(1) << qbits)) >= (uint64_t(1) << (qbits - 1));
 		return (a >> qbits) + tmp;
 	}
@@ -205,8 +204,8 @@ public:
 		return res;
 	}
 
-	FP32 mul2(const FP32 l, const FP32 r) const noexcept { //last bit error in subnormals
-		FP32 res;
+	FP32 mul2(const FP32 l, const FP32 r) const noexcept { //last bit error in subnormals //SUBNORMAL ARGS!
+		FP32 res; 
 		//res.data = (l.getsign() ^ r.getsign()) << 31;
 		res.data = 0;
 		res.example = l.example * r.example;
@@ -225,7 +224,7 @@ public:
 			return fpnan;
 		}
 
-		uint64_t mres = (l.getmantissa() + (uint64_t(1) << 23)) * (r.getmantissa() + (uint64_t(1) << 23)); //bad type
+		uint64_t mres = (l.getmantissa() + (uint64_t(l.getexp() > 0) << 23)) * (r.getmantissa() + (uint64_t(r.getexp() > 0) << 23)); //bad type
 		mres = roundDiv(mres, 23);
 		int32_t eres = l.getexp() + r.getexp() - int32_t(127);
 		
@@ -243,9 +242,9 @@ public:
 			mres -= uint64_t(1) << 23; //idk how to reuse normal unit in subnormals
 			res.data += mres/* >> -eres*/;
 			res.data >>= -eres; 
-			//mres = roundDiv(mres, -eres); //? correct?
+			//mres = roundDiv(mres, -eres); //? correct? NO
 			res.data += uint32_t(1) << (eres + 23);
-			res.data >>= 1; // +1 as subnormals
+			res.data >>= 1; // +1 as subnormals // 1 bit error is somewhere
 			//mres = roundDiv(mres, 1); //? correct?
 		}
 		else {
@@ -328,8 +327,8 @@ public:
 		return false;
 	}
 	bool run_specific() {
-		vector<uint32_t> vl = { 0x34ebd218, 0x34ebd218 };
-		vector<uint32_t> vr = { 0x001010a0, 0x801010a0 };
+		vector<uint32_t> vl = { 0x34ebd218, 0x34ebd218, 0x340106e7 };
+		vector<uint32_t> vr = { 0x001010a0, 0x801010a0, 0x0 };
 		size_t from = 0;
 		for (size_t i = from; i < vl.size(); ++i) {
 			cout << hex << vl[i] << ", " << vr[i];
@@ -354,10 +353,11 @@ public:
 	}
 	bool run() {
 		uint64_t lc, rc;
-		for (lc = 0x00800000; lc <= 0xFFFFFFFF; lc += 765432) {
+		for (lc = 0x00800000; lc <= 0x7FFFFFFF; lc += 76543) {
 		//#pragma omp parallel for
-			for (rc = 0x00800000; rc <= 0xFFFFFFFF; rc += 765432) {
+			for (rc = 0x00000000; rc <= 0x7FFFFFFF; rc += 76543) {
 				//cout << hex << lc << ", " << rc;
+				//if (lc < 0x00800000 || rc < 0x00800000) continue;
 				l = uint32_t(lc);
 				r = uint32_t(rc);
 				//l = l.add2(l, r);
