@@ -204,7 +204,7 @@ public:
 		return res;
 	}
 
-	FP32 mul2(const FP32 l, const FP32 r) const noexcept { //last bit error in subnormals //SUBNORMAL ARGS!
+	FP32 mul2(const FP32 l, const FP32 r) const noexcept { //last bit error in subnormals
 		FP32 res; 
 		//res.data = (l.getsign() ^ r.getsign()) << 31;
 		res.data = 0;
@@ -223,29 +223,35 @@ public:
 		if (l.isfpnan() || r.isfpnan()) {
 			return fpnan;
 		}
+		if ((l.data >> 1) == 0 || (r.data >> 1) == 0) {
+			res.data = (l.getsign() ^ r.getsign()) << 31; //bad
+			return data;
+		}
 
-		uint64_t mres = (l.getmantissa() + (uint64_t(l.getexp() > 0) << 23)) * (r.getmantissa() + (uint64_t(r.getexp() > 0) << 23)); //bad type
+		uint64_t mres = (l.getmantissa() + (uint64_t(l.getexp() > 0) << 23)) * (r.getmantissa() + (uint64_t(r.getexp() > 0) << 23)); //bad type (m1*m2)/2^23 = m1/2^23 * m2
+		int32_t eres = l.getexp() + r.getexp() - int32_t(127) + (l.getexp() == 0 || r.getexp() == 0); // subnormal
+		while ((mres < (uint64_t(1) << 46)) && (eres >= 0)) { // from subnormal to normal ZEEEEEEEE00000*****... if one arg is subnormal and m3 < 2^23
+			--eres;
+			mres <<= 1;
+		}
 		mres = roundDiv(mres, 23);
-		int32_t eres = l.getexp() + r.getexp() - int32_t(127);
 		
+		
+		while (mres >= (uint64_t(1) << 24)) { //instruction to count 00001***mant zeros can be used
+			++eres;
+			mres >>= 1;
+			//mres = roundDiv(mres, 1); //works correct with simple div
+		}
+
 		if (eres > 0) {
-			while (mres >= (uint64_t(1) << 24)) { //instruction to count 00001***mant zeros can be used
-				++eres;
-				mres >>= 1;
-				//mres = roundDiv(mres, 1); //works correct with simple div
-			}
 			mres -= uint64_t(1) << 23; //as normals
 			res.data += mres;
 			res.data += eres << 23;
 		}
 		else if (eres >= -23) {
-			mres -= uint64_t(1) << 23; //idk how to reuse normal unit in subnormals
 			res.data += mres/* >> -eres*/;
-			res.data >>= -eres; 
-			//mres = roundDiv(mres, -eres); //? correct? NO
-			res.data += uint32_t(1) << (eres + 23);
-			res.data >>= 1; // +1 as subnormals // 1 bit error is somewhere
-			//mres = roundDiv(mres, 1); //? correct?
+			res.data >>= -(eres - 1); 
+			//res.data = roundDiv(res.data, -eres); //? correct? NO
 		}
 		else {
 			res.data += (l.getsign() ^ r.getsign()) << 31; //bad
@@ -327,8 +333,8 @@ public:
 		return false;
 	}
 	bool run_specific() {
-		vector<uint32_t> vl = { 0x34ebd218, 0x34ebd218, 0x340106e7 };
-		vector<uint32_t> vr = { 0x001010a0, 0x801010a0, 0x0 };
+		vector<uint32_t> vl = { 0xbadf8, 0x34ebd218, 0x340106e7, 0x800000, 0xbadf8 };
+		vector<uint32_t> vr = { 0x40026e28, 0x801010a0, 0x0, 0x3f010130, 0x40e05790 };
 		size_t from = 0;
 		for (size_t i = from; i < vl.size(); ++i) {
 			cout << hex << vl[i] << ", " << vr[i];
@@ -353,9 +359,9 @@ public:
 	}
 	bool run() {
 		uint64_t lc, rc;
-		for (lc = 0x00800000; lc <= 0x7FFFFFFF; lc += 76543) {
+		for (lc = 0x00000000; lc <= 0xFFFFFFFF; lc += 7654) {
 		//#pragma omp parallel for
-			for (rc = 0x00000000; rc <= 0x7FFFFFFF; rc += 76543) {
+			for (rc = 0x00000000; rc <= 0xFFFFFFFF; rc += 7654) {
 				//cout << hex << lc << ", " << rc;
 				//if (lc < 0x00800000 || rc < 0x00800000) continue;
 				l = uint32_t(lc);
@@ -366,7 +372,7 @@ public:
 				//cout << l.example << " " << float(l) << endl;
 				if (/*!isnan(l.example)*/ (l.example == l.example) && !equal_prec(FP32(l.example).data, l.data, 1)) {
 					//cout << " ADD ERROR\n";
-					cout << hex << lc << ", " << rc;
+					cout << hex << endl << lc << ", " << rc;
 					cout << " MUL ERROR\n";
 					cout << l.example << " expected, " << float(l) << " instead\n";
 					FP32(l.example).print();
@@ -473,8 +479,8 @@ int main() {
 	//l(C);
 	bool flag = true;
 	Alltests tests;
-	if (flag) flag = tests.run_specific();
-	//if (flag) flag = tests.run();
+	//if (flag) flag = tests.run_specific();
+	if (flag) flag = tests.run();
 	cout << endl << "ENDED" << endl;
 	return 0;
 }
